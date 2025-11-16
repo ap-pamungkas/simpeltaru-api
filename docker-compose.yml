@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgis/postgis:15-3.3-alpine
+    container_name: st-postgres
+    environment:
+      POSTGRES_USER: simpeltaru
+      POSTGRES_PASSWORD: simpeltaru
+      POSTGRES_DB: simpeltaru
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: st-redis
+    ports:
+      - "6379:6379"
+
+  api:
+    # gunakan image dev (bukan Dockerfile) supaya nest CLI ada
+    image: node:20-alpine
+    container_name: st-api
+    working_dir: /app
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgresql://simpeltaru:simpeltaru@postgres:5432/simpeltaru
+      JWT_SECRET: dev-secret
+      REDIS_URL: redis://redis:6379
+      NODE_OPTIONS: "--max-old-space-size=8192"
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - .:/app               # mount semua file (termasuk node_modules)
+      - /app/node_modules    # anonymous volume agar node_modules host tidak overwrite
+      - ./uploads:/app/uploads
+    command: >
+      sh -c "corepack enable &&
+        npm i -g @nestjs/cli &&
+        npm install &&
+        npm run start:dev"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+
+
+volumes:
+  pgdata:

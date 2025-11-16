@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  username  String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  reports   Report[]
+}
+
+model Map {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  fileUrl   String // path to .geojson (S3/local)
+  crs       Json? // {"type":"name","properties":{"name":"EPSG:9518"}}
+  bounds    Json? // [[lng,lat],[lng,lat]] for auto-zoom
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  details   MapDetail[]
+  documents DocumentPublic[]
+  reports   Report[]
+
+  @@map("maps")
+}
+
+model MapDetail {
+  id        Int      @id @default(autoincrement())
+  mapId     Int
+  featureId Int // OBJECTID (unique per file)
+  props     Json // entire properties object
+  zoneCode  String // KODZON
+  color     String? // choropleth color (nullable)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  map         Map        @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  zoneColor   ZoneColor? @relation(fields: [zoneColorId], references: [id])
+  zoneColorId Int?
+
+  @@unique([mapId, featureId])
+  @@index([mapId, zoneCode])
+  @@map("map_details")
+}
+
+model DocumentPublic {
+  id        Int      @id @default(autoincrement())
+  mapId     Int
+  title     String
+  fileUrl   String // pdf/jpg
+  mime      String
+  size      Int
+  createdAt DateTime @default(now())
+
+  map Map @relation(fields: [mapId], references: [id], onDelete: Cascade)
+
+  @@index([mapId])
+  @@map("documents_public")
+}
+
+model Report {
+  id          Int          @id @default(autoincrement())
+  mapId       Int
+  userId      Int
+  title       String
+  description String
+  fileUrl     String?
+  status      ReportStatus @default(PENDING)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  map  Map  @relation(fields: [mapId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([mapId])
+  @@index([userId])
+  @@map("reports")
+}
+
+enum ReportStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ZoneColor {
+  id        Int      @id @default(autoincrement())
+  zoneCode  String   @unique
+  color     String? // hex color
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  details MapDetail[]
+
+  @@map("zone_colors")
+}
